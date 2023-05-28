@@ -1,36 +1,47 @@
-use postgres::{Client, Error, NoTls, Row};
 use serde_json::{json, Value};
 use std::{collections::HashMap, net::SocketAddr};
+use tokio_postgres::{Client, NoTls, Row};
 
 use axum::{
-    extract::{ConnectInfo, Json},
+    extract::Json,
     routing::{get, Router},
 };
 // implement the server to handle the requests and respond with json
 
 #[tokio::main]
-async fn main()  {
-    let addr =  "0.0.0.0:3000";
+async fn main() {
+    let addr = "0.0.0.0:3000";
 
     let app = Router::new().route("/", get(handler));
-    axum::Server::bind(&addr.trim().parse().unwrap_or_else(|_| { panic!("Invalid address") }))
-        .serve(
-            // Don't forget to add `ConnectInfo`
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .await
-        .unwrap();
+    axum::Server::bind(
+        &addr
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("Invalid address")),
+    )
+    .serve(
+        // Don't forget to add `ConnectInfo`
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
-async fn handler1() -> Result<Json<Value>, Json<Value>> {
-    Ok(Json(json!({ "message": "success"})))
-}
-
-async fn client()-> Client{
-    Client::connect(
+async fn client() -> Client {
+    let (client, monitor) = tokio_postgres::connect(
         "host=localhost user=githinjihans password='' dbname=worldcities",
         NoTls,
-    ).unwrap_or_else(|_| { panic!("Error connecting to the database") })
+    )
+    .await
+    .unwrap();
+
+    tokio::spawn(async move {
+        if let Err(e) = monitor.await {
+            eprintln!("Connection error: {}", e);
+        }
+    });
+
+    client
 }
 
 async fn handler() -> Result<Json<Value>, Json<Value>> {
@@ -40,7 +51,12 @@ async fn handler() -> Result<Json<Value>, Json<Value>> {
     //     NoTls,
     // ).unwrap_or_else(|_| { panic!("Error connecting to the database") });
     let mut city = HashMap::<String, i64>::new();
-    for row in client().await.query("SELECT * FROM city_attributes", &[]).unwrap_or_else(|_| { panic!("Error on query") }) {
+    for row in client()
+        .await
+        .query("SELECT * FROM city_attributes", &[])
+        .await
+        .unwrap_or_else(|_| panic!("Error on query"))
+    {
         city.insert(
             row.get::<_, String>("city_ascii").to_lowercase(),
             row.get::<_, i64>("id"),
@@ -68,10 +84,12 @@ async fn handler() -> Result<Json<Value>, Json<Value>> {
     for relevant_city in relevant_cities {
         rows.push(
             client()
-                .await.query(
+                .await
+                .query(
                     "SELECT * FROM city_attributes WHERE id = $1 ",
                     &[city.get(&relevant_city.city).unwrap()],
                 )
+                .await
                 .unwrap(),
         );
     }
@@ -100,6 +118,7 @@ fn compare_strings(input: &str, key: &str) -> f64 {
     let len1 = input.chars().count();
     let len2 = key.chars().count();
     let mut equality_percentage;
+
     if key.contains(input) {
         equality_percentage = 90.0;
         // check if the input is a the first part of the key
