@@ -1,0 +1,15 @@
+[package]
+name = "api2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axum = "0.6.18"
+postgres = "0.19.5"
+regex = "1.8.3"
+serde = "1.0.163"
+serde_json = "1.0.96"
+tokio = { version = "1.28.1", features = ["rt-multi-thread", "macros"] }
+tokio-postgres = "0.7.8"
