@@ -13,18 +13,13 @@ async fn main() {
     let addr = "0.0.0.0:3000";
 
     let app = Router::new().route("/", get(handler));
-    axum::Server::bind(
-        &addr
-            .trim()
-            .parse()
-            .unwrap_or_else(|_| panic!("Invalid address")),
-    )
-    .serve(
-        // Don't forget to add `ConnectInfo`
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .unwrap();
+    axum::Server::bind(&addr.trim().parse().expect("Invalid address"))
+        .serve(
+            // Don't forget to add `ConnectInfo`
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
 }
 
 async fn client() -> Client {
