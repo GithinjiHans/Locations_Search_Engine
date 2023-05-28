@@ -46,10 +46,6 @@ async fn client() -> Client {
 
 async fn handler() -> Result<Json<Value>, Json<Value>> {
     let input = "Nai";
-    // let mut client = Client::connect(
-    //     "host=localhost user=githinjihans password='' dbname=worldcities",
-    //     NoTls,
-    // ).unwrap_or_else(|_| { panic!("Error connecting to the database") });
     let mut city = HashMap::<String, i64>::new();
     for row in client()
         .await
