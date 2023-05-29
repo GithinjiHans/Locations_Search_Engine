@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, net::SocketAddr};
-use tokio_postgres::{Client, NoTls, Row, Config};
+use tokio_postgres::{Client, NoTls, Row};
 use dotenv::dotenv;
 use std::env;
 
