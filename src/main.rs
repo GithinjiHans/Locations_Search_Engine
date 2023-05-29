@@ -53,8 +53,8 @@ async fn client() -> Client {
 async fn handler() -> Result<Json<Value>, Json<Value>> {
     let input = "London";
     let mut city = HashMap::<String, i64>::new();
-    for row in client()
-        .await
+    let client = client().await;
+    for row in client
         .query("SELECT * FROM city_attributes", &[])
         .await
         .unwrap_or_else(|_| panic!("Error on query"))
@@ -85,8 +85,7 @@ async fn handler() -> Result<Json<Value>, Json<Value>> {
     let mut rows = Vec::<Vec<Row>>::new();
     for relevant_city in relevant_cities {
         rows.push(
-            client()
-                .await
+            client
                 .query(
                     "SELECT * FROM city_attributes WHERE id = $1 ",
                     &[city.get(&relevant_city.city).unwrap()],
