@@ -1,6 +1,11 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, net::SocketAddr};
-use tokio_postgres::{Client, NoTls, Row};
+use tokio_postgres::{Client, NoTls, Row, Config};
+use dotenv::dotenv;
+use std::env;
+
+extern crate levenshtein;
+use levenshtein::levenshtein;
 
 use axum::{
     extract::Json,
@@ -10,6 +15,7 @@ use axum::{
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     let addr = "0.0.0.0:3000";
 
     let app = Router::new().route("/", get(handler));
@@ -23,8 +29,13 @@ async fn main() {
 }
 
 async fn client() -> Client {
+    let host = env::var("HOST").expect("HOST must be set");
+    let user = env::var("USER").expect("USER must be set");
+    let password = env::var("PASSWORD").expect("PASSWORD must be set");
+    let dbname = env::var("DBNAME").expect("DBNAME must be set");
+    let config_string = format!("host={} user={} password='{}' dbname={}", host, user, password, dbname);
     let (client, monitor) = tokio_postgres::connect(
-        "host=localhost user=githinjihans password='' dbname=worldcities",
+        config_string.as_str(),
         NoTls,
     )
     .await
@@ -40,7 +51,7 @@ async fn client() -> Client {
 }
 
 async fn handler() -> Result<Json<Value>, Json<Value>> {
-    let input = "Nai";
+    let input = "London";
     let mut city = HashMap::<String, i64>::new();
     for row in client()
         .await
@@ -60,17 +71,17 @@ async fn handler() -> Result<Json<Value>, Json<Value>> {
     let mut relevant_cities = Vec::<DerivedCities>::new();
     // check if the input is in the hashmap
     for (key, _value) in city.iter() {
-        let similarity = compare_strings(&input.trim().to_lowercase(), key);
-        if similarity > 70.0 {
+        let similarity = levenshtein(&input.trim().to_lowercase(), key);
+        if similarity < 3 {
             relevant_cities.push(DerivedCities {
-                similarity,
+                similarity: similarity as f64,
                 city: key.to_string(),
             });
         }
     }
 
-    // sort the relevant cities
-    relevant_cities.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap());
+    // sort the relevant cities in ascending order
+    relevant_cities.sort_by(|a, b| a.similarity.partial_cmp(&b.similarity).unwrap());
     let mut rows = Vec::<Vec<Row>>::new();
     for relevant_city in relevant_cities {
         rows.push(
@@ -103,46 +114,4 @@ async fn handler() -> Result<Json<Value>, Json<Value>> {
         }
     }
     Ok(Json(json!(response)))
-}
-
-fn compare_strings(input: &str, key: &str) -> f64 {
-    let len1 = input.chars().count();
-    let len2 = key.chars().count();
-    let mut equality_percentage;
-
-    if key.contains(input) {
-        equality_percentage = 90.0;
-        // check if the input is a the first part of the key
-        if key == input {
-            equality_percentage = 100.0;
-            return equality_percentage;
-        } else if key[0..len1] == input[..] {
-            equality_percentage = 99.99;
-            return equality_percentage;
-        } else if key[len2 - len1..] == input[..] {
-            equality_percentage = 95.0;
-        }
-        return equality_percentage;
-    }
-
-    // compare the characters in the input and the key
-    let mut count = 0;
-    for (i, char1) in input.chars().enumerate() {
-        // get the ith character in the key
-        let char2 = key.chars().nth(i).unwrap_or_else(|| ' ');
-        if char1 == char2 {
-            count += 1;
-        }
-    }
-    equality_percentage = (count as f64 / len1 as f64) * 100.0;
-    if equality_percentage > 60.0 && key.contains(input[..count].to_string().as_str()) {
-        count = input.chars().count() - count;
-        if count == 0 {
-            equality_percentage = 92.0;
-            return equality_percentage;
-        }
-        equality_percentage += (count as f64 / len1 as f64) * 20.0;
-        return equality_percentage;
-    }
-    equality_percentage
 }
